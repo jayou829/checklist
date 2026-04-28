@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오늘 할 일</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf8f4; --bg2: #ffffff; --bg3: #f3f0ea; --card: #ffffff;
+    --border: #e0dbd0; --gold: #8b6914; --gold2: #a07c1e;
+    --gold-dim: rgba(139,105,20,0.08); --gold-dim2: rgba(139,105,20,0.04);
+    --text: #2a2520; --text2: #6b6358; --text3: #a09890;
+    --red: #c0392b; --green2: #2e7d32; --green-dim: rgba(46,125,50,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', sans-serif; min-height: 100vh; }
+
+  /* Loading */
+  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; gap: 1rem; transition: opacity 0.5s; }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 0.78rem; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+  /* Header */
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .logo { font-family: 'Noto Serif KR', serif; font-size: 1.05rem; font-weight: 700; color: var(--gold); display: flex; align-items: center; gap: 0.5rem; }
+  .logo-icon { width: 26px; height: 26px; border: 1.5px solid var(--gold); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+  .header-right { display: flex; align-items: center; gap: 0.8rem; }
+  .date-badge { font-size: 0.72rem; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .sync-status { font-size: 0.68rem; font-family: 'DM Mono', monospace; padding: 0.2rem 0.55rem; border-radius: 100px; border: 1px solid var(--border); color: var(--text3); transition: all 0.3s; }
+  .sync-status.synced { border-color: var(--green2); color: var(--green2); }
+  .sync-status.syncing { border-color: var(--gold); color: var(--gold); }
+  .sync-status.error { border-color: var(--red); color: var(--red); }
+
+  /* Main */
+  main { max-width: 680px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* Stats row */
+  .stats-row { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.2rem; flex-wrap: wrap; }
+  .stat-chip { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text2); background: var(--bg3); border: 1px solid var(--border); border-radius: 100px; padding: 0.22rem 0.7rem; }
+  .stat-chip.done-chip { color: var(--green2); border-color: var(--green2); background: var(--green-dim); }
+  .stat-chip.fail-chip { color: var(--red); border-color: var(--red); background: rgba(192,57,43,0.06); }
+
+  /* Progress bar */
+  .progress-wrap { margin-bottom: 1.6rem; }
+  .progress-bar { height: 5px; background: var(--border); border-radius: 100px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold2)); border-radius: 100px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+
+  /* Checklist */
+  .checklist-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 1.2rem; }
+  .checklist-item { display: flex; align-items: center; gap: 0.9rem; padding: 0.85rem 1.2rem; border-bottom: 1px solid var(--border); transition: background 0.15s; position: relative; }
+  .checklist-item:last-child { border-bottom: none; }
+  .checklist-item:hover { background: var(--gold-dim2); }
+  .checklist-item.done-item { background: var(--green-dim); }
+  .checklist-item.fail-item { background: rgba(192,57,43,0.05); }
+
+  .cl-checkbox { width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 50%; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; transition: all 0.18s; background: var(--bg3); }
+  .cl-checkbox.checked { background: var(--green2); border-color: var(--green2); color: #fff; }
+  .cl-checkbox.failed { background: var(--red); border-color: var(--red); color: #fff; }
+
+  .cl-text { flex: 1; font-size: 0.85rem; color: var(--text); line-height: 1.4; cursor: pointer; transition: all 0.15s; }
+  .done-item .cl-text { color: var(--text3); text-decoration: line-through; }
+  .fail-item .cl-text { color: var(--text3); text-decoration: line-through; }
+
+  /* 액션 버튼들 - hover 시 표시 */
+  .item-actions { display: flex; align-items: center; gap: 0.1rem; opacity: 0; transition: opacity 0.15s; }
+  .checklist-item:hover .item-actions { opacity: 1; }
+  .action-btn { background: none; border: none; cursor: pointer; font-size: 0.72rem; padding: 0.25rem 0.4rem; border-radius: 4px; color: var(--text3); transition: all 0.15s; line-height: 1; }
+  .action-btn:hover { background: var(--bg3); }
+  .action-btn.fail-btn:hover { color: var(--red); background: rgba(192,57,43,0.1); }
+  .action-btn.del-btn:hover { color: var(--red); background: rgba(192,57,43,0.1); }
+  .action-btn.up-btn:hover, .action-btn.down-btn:hover { color: var(--gold); background: var(--gold-dim); }
+  .action-btn.edit-btn:hover { color: var(--gold); background: var(--gold-dim); }
+  /* 실패 상태면 실패 버튼 항상 빨간색 */
+  .fail-item .fail-btn { color: var(--red); opacity: 1; }
+
+  /* 인라인 편집 */
+  .inline-edit-wrap { display: flex; align-items: center; gap: 0.4rem; flex: 1; }
+  .inline-edit-input { background: var(--bg3); border: 1px solid var(--gold); border-radius: 5px; padding: 0.22rem 0.5rem; font-size: 0.83rem; color: var(--text); font-family: 'Noto Sans KR', sans-serif; outline: none; flex: 1; min-width: 0; }
+  .inline-edit-ok { background: var(--gold); border: none; color: #fff; border-radius: 4px; padding: 0.22rem 0.5rem; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+  .inline-edit-cancel { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); border-radius: 4px; padding: 0.22rem 0.5rem; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text3); font-size: 0.82rem; background: var(--card); border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 1.2rem; line-height: 2; }
+
+  /* Add row */
+  .add-row { display: flex; gap: 0.6rem; }
+  .add-input { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 1rem; font-size: 0.83rem; color: var(--text); font-family: 'Noto Sans KR', sans-serif; outline: none; transition: border-color 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .add-input::placeholder { color: var(--text3); }
+  .add-input:focus { border-color: var(--gold); }
+  .add-btn { background: var(--gold-dim); border: 1px solid var(--gold); color: var(--gold); border-radius: 8px; padding: 0.65rem 1.1rem; font-size: 0.8rem; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-weight: 500; transition: all 0.2s; white-space: nowrap; }
+  .add-btn:hover { background: var(--gold); color: #fff; }
+
+  /* Section title */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--border); }
+  .section-title { font-family: 'Noto Serif KR', serif; font-size: 1.3rem; font-weight: 600; color: var(--gold); }
+
+  /* Clear btn */
+  .clear-btn { background: none; border: 1px solid var(--border); color: var(--text3); border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.72rem; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; transition: all 0.2s; }
+  .clear-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--bg2); border: 1px solid var(--gold); color: var(--gold); padding: 0.65rem 1.1rem; border-radius: 6px; font-size: 0.78rem; font-family: 'Noto Sans KR', sans-serif; opacity: 0; transform: translateY(8px); transition: all 0.25s; z-index: 1000; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+
+  @media (max-width: 600px) {
+    header { padding: 0 1rem; }
+    main { padding: 1.2rem 1rem 4rem; }
+    .item-actions { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Firebase 연결 중...</div>
+</div>
+
+<header>
+  <div class="logo"><div class="logo-icon">✅</div>오늘 할 일</div>
+  <div class="header-right">
+    <div class="sync-status" id="syncStatus">연결 중</div>
+    <div class="date-badge" id="dateBadge"></div>
+  </div>
+</header>
+
+<main>
+  <div class="section-header">
+    <div class="section-title" id="sectionTitle">할 일</div>
+    <button class="clear-btn" onclick="clearDone()">완료 항목 지우기</button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip" id="chip-total">총 0개</div>
+    <div class="stat-chip done-chip" id="chip-done">완료 0개</div>
+    <div class="stat-chip fail-chip" id="chip-fail">실패 0개</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  </div>
+
+  <div id="checklist-container"></div>
+
+  <div class="add-row">
+    <input class="add-input" id="cl-input" placeholder="할 일 추가 (Enter로 저장)" onkeydown="if(event.key==='Enter')addItem()" />
+    <button class="add-btn" onclick="addItem()">+ 추가</button>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD7U3CNr_SPnnvBT2p9BAxvBtxUasknKxI",
+  authDomain: "checklist-cab84.firebaseapp.com",
+  projectId: "checklist-cab84",
+  storageBucket: "checklist-cab84.firebasestorage.app",
+  messagingSenderId: "834004401965",
+  appId: "1:834004401965:web:8d01c0302a0f4c87ff5da4"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const docRef = doc(db, "checklist", "my-checklist");
+
+let items = []; // [{text, done, failed}]
+let saveTimer = null;
+let firstLoad = true;
+
+// ── 실시간 동기화 ──
+onSnapshot(docRef, (snap) => {
+  if (snap.exists()) {
+    items = snap.data().items || [];
+  }
+  render();
+  if (firstLoad) {
+    firstLoad = false;
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    setSyncStatus('synced', '✓ 동기화됨');
+  }
+}, (err) => {
+  console.error(err);
+  setSyncStatus('error', '연결 오류');
+  if (firstLoad) { firstLoad = false; document.getElementById('loadingOverlay').classList.add('hidden'); }
+});
+
+function scheduleSave() {
+  setSyncStatus('syncing', '저장 중...');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await setDoc(docRef, { items });
+      setSyncStatus('synced', '✓ 동기화됨');
+    } catch(e) { setSyncStatus('error', '저장 실패'); }
+  }, 600);
+}
+
+function setSyncStatus(cls, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status ' + cls;
+  el.textContent = text;
+}
+
+// ── 렌더 ──
+function render() {
+  const container = document.getElementById('checklist-container');
+  const total = items.length;
+  const done = items.filter(i => i.done).length;
+  const failed = items.filter(i => i.failed).length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+
+  document.getElementById('chip-total').textContent = `총 ${total}개`;
+  document.getElementById('chip-done').textContent = `완료 ${done}개`;
+  document.getElementById('chip-fail').textContent = `실패 ${failed}개`;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  if (total === 0) {
+    container.innerHTML = '<div class="empty-state">아직 할 일이 없어요<br>아래에서 추가해 보세요 ✏️</div>';
+    return;
+  }
+
+  container.innerHTML = '<div class="checklist-wrap">' +
+    items.map((item, i) => {
+      const rowCls = item.done ? 'done-item' : item.failed ? 'fail-item' : '';
+      const cbCls  = item.done ? 'checked' : item.failed ? 'failed' : '';
+      const cbIcon = item.done ? '✓' : item.failed ? '✕' : '';
+      return `
+      <div class="checklist-item ${rowCls}" id="item-row-${i}">
+        <div class="cl-checkbox ${cbCls}" onclick="toggleDone(${i})">${cbIcon}</div>
+        <span class="cl-text" id="item-text-${i}" onclick="toggleDone(${i})">${escHtml(item.text)}</span>
+        <div class="item-actions">
+          <button class="action-btn up-btn" onclick="moveItem(${i},-1)" title="위로">▲</button>
+          <button class="action-btn down-btn" onclick="moveItem(${i},1)" title="아래로">▼</button>
+          <button class="action-btn edit-btn" onclick="editItem(${i})" title="수정">✎</button>
+          <button class="action-btn fail-btn ${item.failed ? 'active' : ''}" onclick="toggleFail(${i})" title="실패">✕</button>
+          <button class="action-btn del-btn" onclick="delItem(${i})" title="삭제">🗑</button>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 액션 함수들 ──
+window.toggleDone = (i) => {
+  items[i].done = !items[i].done;
+  if (items[i].done) items[i].failed = false;
+  render(); scheduleSave();
+  showToast(items[i].done ? '✓ 완료!' : '미완료로 변경');
+};
+
+window.toggleFail = (i) => {
+  items[i].failed = !items[i].failed;
+  if (items[i].failed) items[i].done = false;
+  render(); scheduleSave();
+  showToast(items[i].failed ? '✕ 실패로 표시' : '실패 해제');
+};
+
+window.moveItem = (i, dir) => {
+  const ni = i + dir;
+  if (ni < 0 || ni >= items.length) return;
+  [items[i], items[ni]] = [items[ni], items[i]];
+  render(); scheduleSave();
+};
+
+window.editItem = (i) => {
+  const textEl = document.getElementById(`item-text-${i}`);
+  if (!textEl || textEl.querySelector('.inline-edit-wrap')) return;
+  const orig = items[i].text;
+  textEl.innerHTML = `<span class="inline-edit-wrap">
+    <input class="inline-edit-input" id="edit-inp-${i}" value="${escHtml(orig)}" onkeydown="if(event.key==='Enter')saveEdit(${i});if(event.key==='Escape')render();" />
+    <button class="inline-edit-ok" onclick="saveEdit(${i})">저장</button>
+    <button class="inline-edit-cancel" onclick="render()">취소</button>
+  </span>`;
+  const inp = document.getElementById(`edit-inp-${i}`);
+  inp.focus(); inp.select();
+};
+
+window.saveEdit = (i) => {
+  const inp = document.getElementById(`edit-inp-${i}`);
+  const val = inp ? inp.value.trim() : '';
+  if (!val) { showToast('내용을 입력해 주세요'); return; }
+  items[i].text = val;
+  render(); scheduleSave();
+  showToast('수정됐어요');
+};
+
+window.delItem = (i) => {
+  items.splice(i, 1);
+  render(); scheduleSave();
+  showToast('삭제됐어요');
+};
+
+window.addItem = () => {
+  const inp = document.getElementById('cl-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  items.push({ text, done: false, failed: false });
+  inp.value = '';
+  render(); scheduleSave();
+  showToast('추가됐어요');
+};
+
+window.clearDone = () => {
+  const before = items.length;
+  items = items.filter(i => !i.done);
+  if (items.length === before) { showToast('완료된 항목이 없어요'); return; }
+  render(); scheduleSave();
+  showToast(`완료 항목 ${before - items.length}개를 지웠어요`);
+};
+
+// ── Toast ──
+let toastTimer;
+window.showToast = (msg) => {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+};
+
+// ── 날짜 ──
+const now = new Date();
+const days = ['일','월','화','수','목','금','토'];
+document.getElementById('dateBadge').textContent =
+  `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
+document.getElementById('sectionTitle').textContent =
+  `${now.getMonth()+1}월 ${now.getDate()}일 할 일`;
+</script>
+</body>
+</html>
