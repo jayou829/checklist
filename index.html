@@ -335,7 +335,7 @@ const days = ['일','월','화','수','목','금','토'];
 document.getElementById('dateBadge').textContent =
   `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
 document.getElementById('sectionTitle').textContent =
-  `${now.getMonth()+1}월 ${now.getDate()}일 할 일`;
+  `${now.getMonth()+1}월 ${now.getDate()}일`;
 </script>
 </body>
 </html>
